@@ -28,6 +28,7 @@ async function run() {
     const userCollection = client.db('doctorsHouse').collection('userCollection');
     const doctorsCollection = client.db('doctorsHouse').collection('expertDoctors');
     const reviewsCollectio = client.db('doctorsHouse').collection('reviewsCollection');
+    const appointmentCollection = client.db('doctorsHouse').collection('appointmentCollection')
 
     //User related APIs;
 
@@ -59,6 +60,13 @@ async function run() {
     
     app.get('/reviews', async(req, res) => {
       const result = await reviewsCollectio.find().toArray();
+      res.send(result);
+    })
+
+    // Appointment Related APIs
+    app.post('/appointment', async(req, res) => {
+      const appointment = req.body;
+      const result = await appointmentCollection.insertOne(appointment);
       res.send(result);
     })
 
