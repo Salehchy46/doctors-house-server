@@ -28,7 +28,8 @@ async function run() {
     const userCollection = client.db('doctorsHouse').collection('userCollection');
     const doctorsCollection = client.db('doctorsHouse').collection('expertDoctors');
     const reviewsCollectio = client.db('doctorsHouse').collection('reviewsCollection');
-    const appointmentCollection = client.db('doctorsHouse').collection('appointmentCollection')
+    const appointmentCollection = client.db('doctorsHouse').collection('appointmentCollection');
+    const cvCollection = client.db('doctorsHouse').collection('doctorsCvs');
 
     //User related APIs;
 
@@ -64,9 +65,15 @@ async function run() {
     })
 
     // Appointment Related APIs
-    app.post('/appointment', async(req, res) => {
+    app.post('/appointments', async(req, res) => {
       const appointment = req.body;
       const result = await appointmentCollection.insertOne(appointment);
+      res.send(result);
+    })
+
+    // Doctors CVs related APIs
+    app.get('/doctorsCvs', async(req, res) => {
+      const result = await cvCollection.find().toArray();
       res.send(result);
     })
 
