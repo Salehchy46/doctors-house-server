@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 
 const app = express();
@@ -26,14 +26,13 @@ async function run() {
 
     // Collections
     const userCollection = client.db('doctorsHouse').collection('userCollection');
-    const doctorsCollection = client.db('doctorsHouse').collection('expertDoctors');
+    const doctorsCollection = client.db('doctorsHouse').collection('doctorsCollection');
     const reviewsCollectio = client.db('doctorsHouse').collection('reviewsCollection');
     const appointmentCollection = client.db('doctorsHouse').collection('appointmentCollection');
-    const cvCollection = client.db('doctorsHouse').collection('doctorsCvs');
 
     //User related APIs;
 
-    app.get('/users', async(req, res) => {
+    app.get('/users', async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     })
@@ -41,10 +40,10 @@ async function run() {
     app.post('/users', async (req, res) => {
       const user = req.body;
       //insert email  if user is not in the database;
-      const query = {email: user.email};
+      const query = { email: user.email };
       const existingUser = await userCollection.findOne(query);
-      if(existingUser) {
-        return res.send({message: 'user already exists', insertedId: null})
+      if (existingUser) {
+        return res.send({ message: 'user already exists', insertedId: null })
       }
       const result = await userCollection.insertOne(user);
       res.send(result);
@@ -52,28 +51,40 @@ async function run() {
 
     // Doctors Related APIs
 
-    app.get('/expertDoctors', async(req, res) => {
+    app.get('/expertDoctors', async (req, res) => {
       const result = await doctorsCollection.find().toArray();
       res.send(result);
     })
 
+    app.get('/expertDoctors/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await doctorsCollection.find(query).toArray();
+      res.send(result);
+    })
+
+    app.post('expertDoctors', async(req, res) => {
+      const doctor = req.body;
+      const query = {name : doctor.name};
+      const existingDoctor = await doctorsCollection.findOne(query);
+      if(existingDoctor) {
+        return res.send({message: 'Doctor is already in the list', insertedId: null})
+      }
+      const result = await doctorsCollection.insertOne(doctor);
+      res.send(result);
+    })
+
     //Reviews Related APIs
-    
-    app.get('/reviews', async(req, res) => {
+
+    app.get('/reviews', async (req, res) => {
       const result = await reviewsCollectio.find().toArray();
       res.send(result);
     })
 
     // Appointment Related APIs
-    app.post('/appointments', async(req, res) => {
+    app.post('/appointments', async (req, res) => {
       const appointment = req.body;
       const result = await appointmentCollection.insertOne(appointment);
-      res.send(result);
-    })
-
-    // Doctors CVs related APIs
-    app.get('/doctorsCvs', async(req, res) => {
-      const result = await cvCollection.find().toArray();
       res.send(result);
     })
 
