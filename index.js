@@ -74,6 +74,15 @@ async function run() {
       res.send(result);
     })
 
+    app.patch('expertDoctors/:id', async(req, res) => {
+      const id = req.params.id;
+      const updateData = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {$set : updateData};
+      const result = await doctorsCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    })
+
     //Reviews Related APIs
 
     app.get('/reviews', async (req, res) => {
