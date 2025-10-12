@@ -56,6 +56,12 @@ async function run() {
       res.send(result);
     })
 
+    app.get('/doctors', async (req, res) => {
+      const result = await doctorsCollection.find().toArray();
+      res.send(result);
+    })
+
+    // fixes are needed
     app.get('/expertDoctors/:id', async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -63,6 +69,7 @@ async function run() {
       res.send(result);
     })
 
+    //fixes are needed
     app.post('expertDoctors', async(req, res) => {
       const doctor = req.body;
       const query = {name : doctor.name};
