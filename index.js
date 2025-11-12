@@ -1,14 +1,33 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
-
 const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+const verifyToken = (req, res, next) => {
+  console.log('inside verify token', req.headers.authorization);
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: 'Unauthorized Access' })
+  }
+}
+
+// Add this middleware to verify admin rights
+const verifyAdmin = async (req, res, next) => {
+  const email = req.decoded.email;
+  const query = { email: email };
+  const user = await userCollection.findOne(query);
+  if (user?.role !== 'admin') {
+    return res.status(403).send({ message: 'Forbidden Access' });
+  }
+  next();
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.vu0s8qh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -23,18 +42,39 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
-
     // Collections
     const userCollection = client.db('doctorsHouse').collection('userCollection');
     const doctorsCollection = client.db('doctorsHouse').collection('doctorsCollection');
     const reviewsCollectio = client.db('doctorsHouse').collection('reviewsCollection');
     const appointmentCollection = client.db('doctorsHouse').collection('appointmentCollection');
 
-    //User related APIs;
+    //jwt related API
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '5hr' })
+      res.send({ token });
+    })
 
-    app.get('/users', async (req, res) => {
+    //User related APIs;
+    app.get('/users', verifyAdmin, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
+    })
+
+    app.get('/users/admin/:email', verifyAdmin, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: 'Forbidden Access' })
+      }
+
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.role === 'admin';
+      }
+
+      res.send({ admin });
     })
 
     app.post('/users', async (req, res) => {
@@ -49,8 +89,19 @@ async function run() {
       res.send(result);
     });
 
-    // Doctors Related APIs
+    app.patch('/users/admin/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: 'admin'
+        }
+      }
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    })
 
+    // Doctors Related APIs
     app.get('/expertDoctors', async (req, res) => {
       const result = await doctorsCollection.find().toArray();
       res.send(result);
