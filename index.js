@@ -61,7 +61,6 @@ async function run() {
       res.send(result);
     })
 
-    // fixes are needed
     app.get('/expertDoctors/:id', async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -69,23 +68,22 @@ async function run() {
       res.send(result);
     })
 
-    //fixes are needed
-    app.post('expertDoctors', async(req, res) => {
+    app.post('/expertDoctors', async (req, res) => {
       const doctor = req.body;
-      const query = {name : doctor.name};
+      const query = { name: doctor.name };
       const existingDoctor = await doctorsCollection.findOne(query);
-      if(existingDoctor) {
-        return res.send({message: 'Doctor is already in the list', insertedId: null})
+      if (existingDoctor) {
+        return res.send({ message: 'Doctor is already in the list', insertedId: null })
       }
       const result = await doctorsCollection.insertOne(doctor);
       res.send(result);
     })
 
-    app.patch('expertDoctors/:id', async(req, res) => {
+    app.patch('expertDoctors/:id', async (req, res) => {
       const id = req.params.id;
       const updateData = req.body;
       const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {$set : updateData};
+      const updatedDoc = { $set: updateData };
       const result = await doctorsCollection.updateOne(filter, updatedDoc);
       res.send(result);
     })
@@ -103,6 +101,47 @@ async function run() {
       const result = await appointmentCollection.insertOne(appointment);
       res.send(result);
     })
+
+    app.post("/appointments", async (req, res) => {
+      try {
+        const { name, email, date, time } = req.body;
+        if (!name || !email || !date || !time) {
+          return res.status(400).json({ message: "Missing required fields" });
+        }
+
+        // Check if appointment exists
+        const existing = await appointmentsCollection.findOne({ email, date, time });
+
+        if (existing) {
+          await appointmentsCollection.deleteOne({ _id: existing._id });
+          return res.json({
+            message: "Appointment canceled successfully",
+            canceledAppointment: existing,
+          });
+        } else {
+          // Create new appointment
+          const newAppointment = {
+            name,
+            email,
+            date,
+            time,
+            createdAt: new Date(),
+          };
+
+          const result = await appointmentsCollection.insertOne(newAppointment);
+          return res.send(result);
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        res.status(500).json({ message: "Server error", error });
+      }
+    });
+
+    // Get all appointments
+    app.get("/appointments", async (req, res) => {
+      const list = await appointmentsCollection.find().toArray();
+      res.json(list);
+    });
 
     await client.db('admin').command({ ping: 1 });
     console.log('Pinged your deployment. You successfully connected to MongoDB!');
