@@ -12,21 +12,21 @@ app.use(cors());
 app.use(express.json());
 
 const verifyToken = (req, res, next) => {
-  console.log('inside verify token', req.headers.authorization);
-  if (!req.headers.authorization) {
-    return res.status(401).send({ message: 'Unauthorized Access' })
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({ message: 'Unauthorized Access' });
   }
-}
 
-// Add this middleware to verify admin rights
-const verifyAdmin = async (req, res, next) => {
-  const email = req.decoded.email;
-  const query = { email: email };
-  const user = await userCollection.findOne(query);
-  if (user?.role !== 'admin') {
-    return res.status(403).send({ message: 'Forbidden Access' });
-  }
-  next();
+  const token = authorization.split(" ")[1];
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: "Forbidden Access" });
+    }
+
+    req.decoded = decoded;
+    next();
+  });
 };
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.vu0s8qh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -42,63 +42,101 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
+    
     // Collections
     const userCollection = client.db('doctorsHouse').collection('userCollection');
     const doctorsCollection = client.db('doctorsHouse').collection('doctorsCollection');
-    const reviewsCollectio = client.db('doctorsHouse').collection('reviewsCollection');
+    const reviewsCollection = client.db('doctorsHouse').collection('reviewsCollection'); // Fixed typo
     const appointmentCollection = client.db('doctorsHouse').collection('appointmentCollection');
 
-    //jwt related API
+    // Verify Admin Middleware - defined AFTER collections
+    const verifyAdmin = async (req, res, next) => {
+      try {
+        const email = req.decoded.email;
+        const query = { email: email };
+        const user = await userCollection.findOne(query);
+        
+        if (user?.role !== 'admin') {
+          return res.status(403).send({ message: 'Forbidden Access' });
+        }
+        next();
+      } catch (error) {
+        console.error('Admin verification error:', error);
+        return res.status(500).send({ message: 'Server error during admin verification' });
+      }
+    };
+
+    // JWT related API
     app.post('/jwt', async (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '5hr' })
       res.send({ token });
     })
 
-    //User related APIs;
-    app.get('/users', verifyAdmin, async (req, res) => {
-      const result = await userCollection.find().toArray();
-      res.send(result);
+    // User related APIs
+    app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const result = await userCollection.find().toArray();
+        res.send(result);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).send({ message: 'Server error' });
+      }
     })
 
-    app.get('/users/admin/:email', verifyAdmin, async (req, res) => {
-      const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: 'Forbidden Access' })
-      }
+    app.get('/users/admin/:email', verifyToken, async (req, res) => {
+      try {
+        const email = req.params.email;
+        if (email !== req.decoded.email) {
+          return res.status(403).send({ message: 'Forbidden Access' })
+        }
 
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
-      let admin = false;
-      if (user) {
-        admin = user?.role === 'admin';
-      }
+        const query = { email: email };
+        const user = await userCollection.findOne(query);
+        let admin = false;
+        if (user) {
+          admin = user?.role === 'admin';
+        }
 
-      res.send({ admin });
+        res.send({ admin });
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        res.status(500).send({ message: 'Server error' });
+      }
     })
 
     app.post('/users', async (req, res) => {
-      const user = req.body;
-      //insert email  if user is not in the database;
-      const query = { email: user.email };
-      const existingUser = await userCollection.findOne(query);
-      if (existingUser) {
-        return res.send({ message: 'user already exists', insertedId: null })
+      try {
+        const user = req.body;
+        // Insert email if user is not in the database
+        const query = { email: user.email };
+        const existingUser = await userCollection.findOne(query);
+        if (existingUser) {
+          return res.send({ message: 'user already exists', insertedId: null })
+        }
+        const result = await userCollection.insertOne(user);
+        res.send(result);
+      } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).send({ message: 'Server error' });
       }
-      const result = await userCollection.insertOne(user);
-      res.send(result);
     });
 
-    app.patch('/users/admin/:id', async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: {
-          role: 'admin'
+    app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            role: 'admin'
+          }
         }
+        const result = await userCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      } catch (error) {
+        console.error('Error promoting user to admin:', error);
+        res.status(500).send({ message: 'Server error' });
       }
-      const result = await userCollection.updateOne(filter, updateDoc);
-      res.send(result);
     })
 
     // Doctors Related APIs
@@ -115,7 +153,7 @@ async function run() {
     app.get('/expertDoctors/:id', async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      const result = await doctorsCollection.find(query).toArray();
+      const result = await doctorsCollection.findOne(query); // Use findOne instead of find
       res.send(result);
     })
 
@@ -130,7 +168,8 @@ async function run() {
       res.send(result);
     })
 
-    app.patch('expertDoctors/:id', async (req, res) => {
+    // Fixed missing slash in route
+    app.patch('/expertDoctors/:id', async (req, res) => {
       const id = req.params.id;
       const updateData = req.body;
       const filter = { _id: new ObjectId(id) };
@@ -139,32 +178,26 @@ async function run() {
       res.send(result);
     })
 
-    //Reviews Related APIs
-
+    // Reviews Related APIs
     app.get('/reviews', async (req, res) => {
-      const result = await reviewsCollectio.find().toArray();
+      const result = await reviewsCollection.find().toArray();
       res.send(result);
     })
 
-    // Appointment Related APIs
+    // Appointment Related APIs - Single fixed route
     app.post('/appointments', async (req, res) => {
-      const appointment = req.body;
-      const result = await appointmentCollection.insertOne(appointment);
-      res.send(result);
-    })
-
-    app.post("/appointments", async (req, res) => {
       try {
         const { name, email, date, time } = req.body;
+        
         if (!name || !email || !date || !time) {
           return res.status(400).json({ message: "Missing required fields" });
         }
 
         // Check if appointment exists
-        const existing = await appointmentsCollection.findOne({ email, date, time });
+        const existing = await appointmentCollection.findOne({ email, date, time });
 
         if (existing) {
-          await appointmentsCollection.deleteOne({ _id: existing._id });
+          await appointmentCollection.deleteOne({ _id: existing._id });
           return res.json({
             message: "Appointment canceled successfully",
             canceledAppointment: existing,
@@ -179,7 +212,7 @@ async function run() {
             createdAt: new Date(),
           };
 
-          const result = await appointmentsCollection.insertOne(newAppointment);
+          const result = await appointmentCollection.insertOne(newAppointment);
           return res.send(result);
         }
       } catch (error) {
@@ -190,7 +223,7 @@ async function run() {
 
     // Get all appointments
     app.get("/appointments", async (req, res) => {
-      const list = await appointmentsCollection.find().toArray();
+      const list = await appointmentCollection.find().toArray();
       res.json(list);
     });
 
@@ -200,6 +233,7 @@ async function run() {
     // do not close
   }
 }
+
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
