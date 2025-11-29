@@ -192,6 +192,12 @@ async function run() {
       }
     });
 
+    app.delete('/doctors/:id', async(req, res) => {
+      const doctor = req.body;
+      const result = await doctorsCollection.deleteOne(doctor);
+      res.send(result);
+    })
+
     app.get('/expertDoctors/:id', async (req, res) => {
       try {
         const id = req.params.id;
@@ -200,7 +206,7 @@ async function run() {
         }
 
         const query = { _id: new ObjectId(id) };
-        const result = await doctorsCollection.findOne(query); // Use findOne instead of find
+        const result = await doctorsCollection.findOne(query); 
 
         if (!result) {
           return res.status(404).send({ message: 'Doctor not found' });
@@ -231,7 +237,7 @@ async function run() {
       }
     });
 
-    app.patch('/expertDoctors/:id', verifyToken, verifyAdmin, async (req, res) => { // Fixed missing slash
+    app.patch('/expertDoctors/:id', verifyToken, verifyAdmin, async (req, res) => { 
       try {
         const id = req.params.id;
         if (!ObjectId.isValid(id)) {
@@ -252,7 +258,7 @@ async function run() {
     // Reviews Related APIs
     app.get('/reviews', async (req, res) => {
       try {
-        const result = await reviewsCollection.find().toArray(); // Fixed variable name
+        const result = await reviewsCollection.find().toArray(); 
         res.send(result);
       } catch (error) {
         console.error('Error fetching reviews:', error);
