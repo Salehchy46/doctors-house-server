@@ -267,7 +267,7 @@ async function run() {
     });
 
     // Appointment Related APIs - Fixed duplicate route
-    app.post('/appointments', verifyToken, async (req, res) => {
+    app.post('/appointments', async (req, res) => {
       try {
         const { name, email, date, time, doctorId } = req.body;
 
@@ -313,7 +313,7 @@ async function run() {
     });
 
     // Get all appointments
-    app.get("/appointments", verifyToken, async (req, res) => {
+    app.get("/appointments", async (req, res) => {
       try {
         const list = await appointmentCollection.find().toArray();
         res.json(list);
