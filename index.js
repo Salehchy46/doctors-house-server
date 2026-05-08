@@ -16,7 +16,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Move collections to top level so they're accessible everywhere
-let userCollection, doctorsCollection, reviewsCollection, appointmentCollection;
+let userCollection, doctorsCollection, reviewsCollection, appointmentCollection, contactAppointmentCollection;
 
 // Fixed JWT verification
 const verifyToken = (req, res, next) => {
@@ -56,6 +56,7 @@ async function run() {
     userCollection = client.db('doctorsHouse').collection('userCollection');
     doctorsCollection = client.db('doctorsHouse').collection('doctorsCollection');
     reviewsCollection = client.db('doctorsHouse').collection('reviewsCollection'); // Fixed typo
+    contactAppointmentCollection = client.db('doctorsHouse').collection('contactAppointmentCollection');
     appointmentCollection = client.db('doctorsHouse').collection('appointmentCollection');
 
     console.log('Connected to MongoDB collections');
@@ -134,7 +135,7 @@ async function run() {
       }
     });
 
-    app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
+    app.patch('/users/admin/:id', async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -192,7 +193,7 @@ async function run() {
       }
     });
 
-    app.delete('/doctors/:id', async(req, res) => {
+    app.delete('/doctors/:id', async (req, res) => {
       const doctor = req.body;
       const result = await doctorsCollection.deleteOne(doctor);
       res.send(result);
@@ -206,7 +207,7 @@ async function run() {
         }
 
         const query = { _id: new ObjectId(id) };
-        const result = await doctorsCollection.findOne(query); 
+        const result = await doctorsCollection.findOne(query);
 
         if (!result) {
           return res.status(404).send({ message: 'Doctor not found' });
@@ -219,7 +220,7 @@ async function run() {
       }
     });
 
-    app.post('/expertDoctors', verifyToken, verifyAdmin, async (req, res) => {
+    app.post('/expertDoctors', async (req, res) => {
       try {
         const doctor = req.body;
         const query = { name: doctor.name };
@@ -237,7 +238,7 @@ async function run() {
       }
     });
 
-    app.patch('/expertDoctors/:id', verifyToken, verifyAdmin, async (req, res) => { 
+    app.patch('/expertDoctors/:id', async (req, res) => {
       try {
         const id = req.params.id;
         if (!ObjectId.isValid(id)) {
@@ -258,7 +259,7 @@ async function run() {
     // Reviews Related APIs
     app.get('/reviews', async (req, res) => {
       try {
-        const result = await reviewsCollection.find().toArray(); 
+        const result = await reviewsCollection.find().toArray();
         res.send(result);
       } catch (error) {
         console.error('Error fetching reviews:', error);
@@ -267,58 +268,45 @@ async function run() {
     });
 
     // Appointment Related APIs - Fixed duplicate route
-    app.post('/appointments', async (req, res) => {
+    app.post('/contactAppointment', async (req, res) => {
       try {
-        const { name, email, date, time, doctorId } = req.body;
+        const { name, email, number, doctorsName, doctorId, date, time } = req.body;
 
-        if (!name || !email || !date || !time) {
-          return res.status(400).json({ message: "Missing required fields" });
+        if (!name || !email || !number || !doctorsName || !doctorId || !date || !time) {
+          return res.status(400).json({ message: "All fields are required" });
         }
 
-        // Check if appointment exists
-        const existing = await appointmentCollection.findOne({
+        const newAppointment = {
+          name,
           email,
+          number,
+          doctorsName,
+          doctorId,    
           date,
-          time
+          time,
+          createdAt: new Date(),
+          status: 'pending',
+          source: 'homepage_contact_form'
+        };
+
+        const result = await contactAppointmentCollection.insertOne(newAppointment);
+        res.status(201).json({
+          message: "Appointment request submitted successfully",
+          insertedId: result.insertedId,
+          appointment: newAppointment
         });
-
-        if (existing) {
-          await appointmentCollection.deleteOne({ _id: existing._id });
-          return res.json({
-            message: "Appointment canceled successfully",
-            canceledAppointment: existing,
-          });
-        } else {
-          // Create new appointment
-          const newAppointment = {
-            name,
-            email,
-            date,
-            time,
-            doctorId: doctorId || null,
-            createdAt: new Date(),
-          };
-
-          const result = await appointmentCollection.insertOne(newAppointment);
-          return res.json({
-            message: "Appointment created successfully",
-            appointment: newAppointment,
-            insertedId: result.insertedId
-          });
-        }
       } catch (error) {
-        console.error("Appointment error:", error);
+        console.error("Contact appointment error:", error);
         res.status(500).json({ message: "Server error", error: error.message });
       }
     });
 
-    // Get all appointments
-    app.get("/appointments", async (req, res) => {
+    app.get("/contactAppointment", async (req, res) => {
       try {
-        const list = await appointmentCollection.find().toArray();
+        const list = await contactAppointmentCollection.find().toArray();
         res.json(list);
       } catch (error) {
-        console.error("Error fetching appointments:", error);
+        console.error("Error fetching contactAppointment:", error);
         res.status(500).json({ message: "Server error" });
       }
     });
