@@ -281,7 +281,7 @@ async function run() {
           email,
           number,
           doctorsName,
-          doctorId,    
+          doctorId,
           date,
           time,
           createdAt: new Date(),
@@ -308,6 +308,24 @@ async function run() {
       } catch (error) {
         console.error("Error fetching contactAppointment:", error);
         res.status(500).json({ message: "Server error" });
+      }
+    });
+
+    app.delete('/contactAppointment/:id', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const id = req.params.id;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ message: 'Invalid appointment ID' });
+        }
+        const query = { _id: new ObjectId(id) };
+        const result = await appointmentCollection.deleteOne(query);
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ message: 'Appointment not found' });
+        }
+        res.send({ message: 'Appointment deleted successfully', result });
+      } catch (error) {
+        console.error('Error deleting appointment:', error);
+        res.status(500).send({ message: 'Server error' });
       }
     });
 
