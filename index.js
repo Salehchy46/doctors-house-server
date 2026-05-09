@@ -311,14 +311,14 @@ async function run() {
       }
     });
 
-    app.delete('/contactAppointment/:id', verifyToken, verifyAdmin, async (req, res) => {
+    app.delete('/contactAppointment/:id', verifyToken, async (req, res) => {
       try {
         const id = req.params.id;
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({ message: 'Invalid appointment ID' });
         }
         const query = { _id: new ObjectId(id) };
-        const result = await appointmentCollection.deleteOne(query);
+        const result = await contactAppointmentCollection.deleteOne(query);
         if (result.deletedCount === 0) {
           return res.status(404).send({ message: 'Appointment not found' });
         }
@@ -327,6 +327,63 @@ async function run() {
         console.error('Error deleting appointment:', error);
         res.status(500).send({ message: 'Server error' });
       }
+    });
+
+    // experiment appointment collection from Appointment Page
+    app.post('/appointments', async (req, res) => {
+      try {
+        const {
+          fullName,
+          mobile,
+          email,
+          service,
+          scheduledTime,
+          appointmentDate,
+          slotId,
+          slotTitle,
+          slotImage,
+          bookedAt,
+          status
+        } = req.body;
+
+        // Validate required fields
+        if (!fullName || !mobile || !email || !service || !scheduledTime || !appointmentDate) {
+          return res.status(400).json({
+            message: "Missing required fields: fullName, mobile, email, service, scheduledTime, appointmentDate"
+          });
+        }
+
+        const newAppointment = {
+          fullName,
+          mobile,
+          email,
+          service,
+          scheduledTime,
+          appointmentDate,
+          slotId: slotId || null,
+          slotTitle: slotTitle || null,
+          slotImage: slotImage || null,
+          bookedAt: bookedAt || new Date().toISOString(),
+          status: status || 'pending',
+          createdAt: new Date(),
+          source: 'appointment_page_form'
+        };
+
+        const result = await appointmentCollection.insertOne(newAppointment);
+        res.status(201).json({
+          message: "Appointment created successfully",
+          insertedId: result.insertedId,
+          appointment: newAppointment
+        });
+      } catch (error) {
+        console.error("Error creating appointment:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+      }
+    });
+
+    app.get('/appointments', async (req, res) => {
+      const result = await appointmentCollection.find().toArray();
+      res.send(result);
     });
 
     await client.db('admin').command({ ping: 1 });
