@@ -81,7 +81,7 @@ async function run() {
     // JWT related API
     app.post('/jwt', async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '5h' });
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '24h' });
       res.send({ token });
     });
 
@@ -194,8 +194,11 @@ async function run() {
     });
 
     app.delete('/doctors/:id', async (req, res) => {
-      const doctor = req.body;
-      const result = await doctorsCollection.deleteOne(doctor);
+      const id = req.params.id;
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: 'Invalid ID format' });
+      }
+      const result = await doctorsCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
     })
 
