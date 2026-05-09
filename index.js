@@ -311,7 +311,7 @@ async function run() {
       }
     });
 
-    app.delete('/contactAppointment/:id', verifyToken, async (req, res) => {
+    app.delete('/contactAppointment/:id', async (req, res) => {
       try {
         const id = req.params.id;
         if (!ObjectId.isValid(id)) {
@@ -384,6 +384,23 @@ async function run() {
     app.get('/appointments', async (req, res) => {
       const result = await appointmentCollection.find().toArray();
       res.send(result);
+    });
+
+    app.delete('/appointments/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ message: 'Invalid appointment ID' });
+        }
+        const result = await appointmentCollection.deleteOne({ _id: new ObjectId(id) });
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ message: 'Appointment not found' });
+        }
+        res.send({ message: 'Appointment deleted successfully' });
+      } catch (error) {
+        console.error("Error deleting appointment:", error);
+        res.status(500).send({ message: "Server error" });
+      }
     });
 
     await client.db('admin').command({ ping: 1 });
